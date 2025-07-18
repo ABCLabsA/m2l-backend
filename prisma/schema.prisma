@@ -1,0 +1,198 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Users {
+  id             String   @id @default(cuid()) // id
+  lastLogin      DateTime @map("last_login") // 最后登录时间
+  createdAt      DateTime @default(now()) @map("created_at") // 创建时间
+  updatedAt      DateTime @updatedAt @map("updated_at") // 更新时间
+  chainId        Int      @map("chain_id") // 链id 废弃
+  firstLogin     DateTime @map("first_login") // 首次登录时间
+  isInitialized  Boolean  @default(true) @map("is_initialized") // 是否初始化
+  profileId      String?  @map("profile_id") // 用户id 废弃
+  walletAddress  String   @unique @map("wallet_address") // 钱包地址
+
+  // Relations
+  courseBuy           UserCourseBuy[] // 用户课程购买记录
+  userProgress        UserProgress[] // 用户进度
+  checkPointLogs      UserCheckPointLog[] // 用户检查点日志
+  checkPointProgress  UserCheckPointProgress[] // 用户检查点进度
+  aiAgentUsageLogs    AiAgentUsageLog[] // AI agent使用记录
+
+  @@map("users")
+}
+
+model CourseType {
+  id          String   @id @default(cuid()) // id
+  name        String // 课程类型名称
+  description String? // 课程类型描述
+
+  // Relations
+  courses     Course[] // 课程
+
+  @@map("course_type")
+}
+
+model Course {
+  id           String      @id @default(cuid()) // id
+  title        String // 课程名称
+  description  String // 课程描述
+  image        String? // 课程图片
+  badge        String? // 课程徽章
+  createdAt    DateTime    @default(now()) @map("created_at") // 创建时间
+  updatedAt    DateTime    @updatedAt @map("updated_at") // 更新时间
+  price        Decimal     @db.Decimal(10, 2) // 课程价格
+  finishReward BigInt      @map("finish_reward") // 完成奖励
+  typeId       String?     @map("type_id") // 课程类型id
+
+  // Relations
+  type         CourseType?     @relation(fields: [typeId], references: [id]) // 课程类型
+  chapters     Chapter[] // 章节
+  courseBuy    UserCourseBuy[] // 用户课程购买记录
+  userProgress UserProgress[] // 用户进度
+
+  @@map("course")
+}
+
+model Chapter {
+  id           String   @id @default(cuid())
+  title        String // 章节名称  
+  description  String // 章节描述
+  content      String?  @db.Text // 章节内容
+  order        Int // 章节顺序
+  courseId     String   @map("course_id") // 课程id 
+  nextChapterId String? @unique @map("next_chapter_id") // 下一章节id
+  type         String? // 章节类型
+  createdAt    DateTime @default(now()) @map("created_at") // 创建时间
+  updatedAt    DateTime @updatedAt @map("updated_at") // 更新时间
+
+  // Relations
+  course       Course         @relation(fields: [courseId], references: [id], onDelete: Cascade) // 课程
+  nextChapter  Chapter?       @relation("ChapterNextPrev", fields: [nextChapterId], references: [id]) // 下一章节
+  prevChapter  Chapter?       @relation("ChapterNextPrev") // 上一章节
+  userProgress UserProgress[] // 用户进度
+  checkPoints  CheckPoint[] // 检查点
+
+  @@map("chapter")
+}
+
+model CheckPoint {
+  id                 String   @id @default(cuid())
+  chapterId          String   @map("chapter_id") // 章节id
+  title              String // 检查点标题
+  type               String   // "choice" 或 "code"
+  order              Int      @default(0) // 检查点顺序
+  
+  // 选择题相关字段
+  correctAnswer      String?  @map("correct_answer")  // 选择题的正确答案
+  options            Json?    // 选择题的选项（JSON格式）
+  
+  // 代码题相关字段
+  baseCode           String?  @db.Text @map("base_code")           // 基础代码
+  interactiveCommand String?  @db.Text @map("interactive_command") // 交互命令
+  expectedOutput     String?  @db.Text @map("expected_output")     // 期望输出包含的字符串
+  
+  createdAt          DateTime @default(now()) @map("created_at") // 创建时间
+  updatedAt          DateTime @updatedAt @map("updated_at") // 更新时间 
+
+  // Relations
+  chapter            Chapter                  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  logs               UserCheckPointLog[] // 用户检查点日志
+  userProgress       UserCheckPointProgress[] // 用户检查点进度
+
+  @@map("check_point")
+}
+
+model UserCheckPointLog {
+  id            String   @id @default(cuid()) // id 
+  userId        String   @map("user_id") // 用户id
+  checkPointId  String   @map("check_point_id") // 检查点id
+  answer        String?  @db.Text  // 用户提交的答案
+  isCorrect     Boolean  @map("is_correct") // 是否正确
+  createdAt     DateTime @default(now()) @map("created_at") // 创建时间
+
+  // Relations
+  user          Users      @relation(fields: [userId], references: [id], onDelete: Cascade) // 用户
+  checkPoint    CheckPoint @relation(fields: [checkPointId], references: [id], onDelete: Cascade) // 检查点
+
+  @@map("user_check_point_log")
+}
+
+model UserCheckPointProgress {
+  id            String    @id @default(cuid()) // id
+  userId        String    @map("user_id") // 用户id
+  checkPointId  String    @map("check_point_id") // 检查点id
+  completed     Boolean   @default(false) // 是否完成
+  completedAt   DateTime? @map("completed_at") // 完成时间
+  attempts      Int       @default(0)  // 尝试次数
+  createdAt     DateTime  @default(now()) @map("created_at") // 创建时间
+  updatedAt     DateTime  @updatedAt @map("updated_at") // 更新时间
+
+  // Relations
+  user          Users      @relation(fields: [userId], references: [id], onDelete: Cascade) // 用户
+  checkPoint    CheckPoint @relation(fields: [checkPointId], references: [id], onDelete: Cascade) // 检查点
+
+  @@unique([userId, checkPointId])
+  @@map("user_check_point_progress")
+}
+
+model UserCourseBuy {
+  id             String   @id @default(cuid()) 
+  courseId       String   @map("course_id") // 课程id  
+  userId         String   @map("user_id") // 用户id
+  createAt       DateTime @default(now()) @map("create_at") // 创建时间
+  isFinished     Boolean  @default(false) @map("is_finished") // 是否完成
+  certificateGet Boolean  @default(false) @map("certificate_get") // 是否获取证书 
+
+  // Relations
+  course     Course @relation(fields: [courseId], references: [id], onDelete: Cascade) // 课程
+  user       Users  @relation(fields: [userId], references: [id], onDelete: Cascade) // 用户
+
+  @@unique([userId, courseId])
+  @@map("user_course_buy")
+}
+
+model UserProgress {
+  id          String    @id @default(cuid()) // id 
+  userId      String    @map("user_id") // 用户id
+  courseId    String    @map("course_id") // 课程id
+  chapterId   String    @map("chapter_id") // 章节id
+  completed   Boolean   @default(false) @map("completed") // 是否完成
+  completedAt DateTime? @map("completed_at") // 完成时间
+  createdAt   DateTime  @default(now()) @map("created_at") // 创建时间
+  updatedAt   DateTime  @updatedAt @map("updated_at") // 更新时间
+
+  // Relations
+  user    Users   @relation(fields: [userId], references: [id], onDelete: Cascade) // 用户
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade) // 课程
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade) // 章节
+
+  @@unique([userId, chapterId])
+  @@map("user_progress")
+}
+
+model AiAgentUsageLog {
+  id          String   @id @default(cuid()) // id
+  userId      String   @map("user_id") // 用户id
+  sessionId   String?  @map("session_id") // 会话id (可选，用于关联同一会话的多次交互)
+  userQuery   Json     @map("user_query") // 用户发送的问题 (JSON格式)
+  apiResponse Json     @map("api_response") // API的回复 (JSON格式)
+  requestType String?  @map("request_type") // 请求类型 (可选，比如"question", "code_help"等)
+  tokenUsed   Int?     @map("token_used") // 使用的token数量 (可选)
+  duration    Int?     // 响应时间（毫秒）
+  createdAt   DateTime @default(now()) @map("created_at") // 创建时间
+
+  // Relations
+  user        Users    @relation(fields: [userId], references: [id], onDelete: Cascade) // 用户
+
+  @@map("ai_agent_usage_log")
+}

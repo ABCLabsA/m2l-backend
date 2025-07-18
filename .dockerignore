@@ -1,0 +1,72 @@
+# 排除不需要复制到Docker镜像的文件
+
+# 依赖目录
+node_modules
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 构建输出
+dist
+build
+.next
+
+# 开发文件
+.env*
+!.env.example
+*.local
+
+# 版本控制
+.git
+.gitignore
+README.md
+README-*.md
+
+# IDE 配置
+.vscode
+.idea
+*.swp
+*.swo
+
+# 日志
+logs
+*.log
+
+# 运行时文件
+*.pid
+*.seed
+*.pid.lock
+
+# 覆盖率报告
+coverage
+.nyc_output
+
+# 测试文件
+test
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Docker 相关
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# 部署脚本
+scripts/*.sh
+
+# 临时文件
+.tmp
+.temp
+*.tmp
+*.temp
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini 

@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE 流式传输测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8fafc;
+            line-height: 1.6;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #2d3748;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .test-section h3 {
+            color: #4a5568;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        button:hover:not(:disabled) {
+            background: #2563eb;
+        }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        button.stop {
+            background: #ef4444;
+        }
+        button.stop:hover:not(:disabled) {
+            background: #dc2626;
+        }
+        button.clear {
+            background: #6b7280;
+        }
+        button.clear:hover:not(:disabled) {
+            background: #4b5563;
+        }
+        .response-section {
+            margin-top: 20px;
+        }
+        .response-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 15px;
+            min-height: 150px;
+            white-space: pre-wrap;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            line-height: 1.5;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+        .status.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #6b7280;
+        }
+        .stats span {
+            background: #f3f4f6;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .hidden {
+            display: none;
+        }
+        code {
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 SSE 流式传输测试</h1>
+        <div class="status info" style="margin-bottom: 20px;">
+            📌 <strong>注意：</strong>请确保后端服务运行在 <code>http://localhost:8100</code>
+        </div>
+        
+        <!-- 简单测试 -->
+        <div class="test-section">
+            <h3>📝 简单文本流测试</h3>
+            <div class="input-group">
+                <label for="simpleText">测试文本：</label>
+                <input 
+                    type="text" 
+                    id="simpleText" 
+                    placeholder="输入要流式传输的文本..." 
+                    value="Hello SSE streaming! 这是一个流式传输测试。"
+                />
+            </div>
+            <button onclick="startSimpleTest()" id="simpleTestBtn">开始简单测试</button>
+            <button onclick="stopStream()" class="stop" id="stopBtn" disabled>停止流</button>
+            <button onclick="clearResponse('simpleResponse')" class="clear">清空</button>
+            
+            <div class="response-section">
+                <label>实时响应：</label>
+                <div id="simpleResponse" class="response-box"></div>
+                <div class="stats">
+                    <span>接收到: <span id="simpleChunks">0</span> 个数据块</span>
+                    <span>耗时: <span id="simpleTime">0</span>ms</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI对话测试 -->
+        <div class="test-section">
+            <h3>🤖 AI 对话流测试</h3>
+            <div class="input-group">
+                <label for="aiQuestion">问题：</label>
+                <textarea 
+                    id="aiQuestion" 
+                    placeholder="输入你想问AI的问题..."
+                >请简单介绍一下区块链技术，包括它的基本概念、工作原理和主要应用场景。</textarea>
+            </div>
+            <div class="input-group">
+                <label for="authToken">认证Token（可选）：</label>
+                <input 
+                    type="text" 
+                    id="authToken" 
+                    placeholder="Bearer token..."
+                />
+            </div>
+            <button onclick="startAITest()" id="aiTestBtn">开始AI对话</button>
+            <button onclick="stopStream()" class="stop" id="stopAiBtn" disabled>停止对话</button>
+            <button onclick="clearResponse('aiResponse')" class="clear">清空</button>
+            
+            <div class="response-section">
+                <label>AI响应：</label>
+                <div id="aiResponse" class="response-box"></div>
+                <div class="stats">
+                    <span>接收到: <span id="aiChunks">0</span> 个数据块</span>
+                    <span>耗时: <span id="aiTime">0</span>ms</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 使用GET接口的EventSource测试 -->
+        <div class="test-section">
+            <h3>📡 EventSource (GET) 测试</h3>
+            <div class="input-group">
+                <label for="eventSourceQuestion">问题：</label>
+                <input 
+                    type="text" 
+                    id="eventSourceQuestion" 
+                    placeholder="输入问题..." 
+                    value="什么是人工智能？"
+                />
+            </div>
+            <button onclick="startEventSourceTest()" id="eventSourceBtn">使用EventSource</button>
+            <button onclick="stopEventSource()" class="stop" id="stopEventSourceBtn" disabled>停止连接</button>
+            <button onclick="clearResponse('eventSourceResponse')" class="clear">清空</button>
+            
+            <div class="response-section">
+                <label>EventSource响应：</label>
+                <div id="eventSourceResponse" class="response-box"></div>
+                <div class="stats">
+                    <span>连接状态: <span id="esStatus">未连接</span></span>
+                    <span>接收到: <span id="esChunks">0</span> 个数据块</span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="status" class="status hidden"></div>
+    </div>
+
+    <script>
+        let currentEventSource = null;
+        let startTime = 0;
+        let chunkCount = 0;
+
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.classList.remove('hidden');
+        }
+
+        function hideStatus() {
+            document.getElementById('status').classList.add('hidden');
+        }
+
+        function clearResponse(elementId) {
+            document.getElementById(elementId).textContent = '';
+            if (elementId === 'simpleResponse') {
+                document.getElementById('simpleChunks').textContent = '0';
+                document.getElementById('simpleTime').textContent = '0';
+            } else if (elementId === 'aiResponse') {
+                document.getElementById('aiChunks').textContent = '0';
+                document.getElementById('aiTime').textContent = '0';
+            } else if (elementId === 'eventSourceResponse') {
+                document.getElementById('esChunks').textContent = '0';
+                document.getElementById('esStatus').textContent = '未连接';
+            }
+            hideStatus();
+        }
+
+        function updateStats(type, chunks, time) {
+            if (type === 'simple') {
+                document.getElementById('simpleChunks').textContent = chunks;
+                document.getElementById('simpleTime').textContent = time;
+            } else if (type === 'ai') {
+                document.getElementById('aiChunks').textContent = chunks;
+                document.getElementById('aiTime').textContent = time;
+            } else if (type === 'es') {
+                document.getElementById('esChunks').textContent = chunks;
+            }
+        }
+
+        // 简单测试
+        async function startSimpleTest() {
+            const text = document.getElementById('simpleText').value.trim();
+            if (!text) {
+                showStatus('请输入测试文本', 'error');
+                return;
+            }
+            
+            clearResponse('simpleResponse');
+            showStatus('正在连接简单测试流...', 'info');
+            
+            document.getElementById('simpleTestBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            
+            startTime = Date.now();
+            chunkCount = 0;
+            
+            try {
+                                 const response = await fetch('http://localhost:8100/api/ai-agent/simple-test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                const responseDiv = document.getElementById('simpleResponse');
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    console.log('Received simple chunk:', chunk);
+
+                    // 解析SSE格式
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.substring(6);
+                            if (data === '[DONE]') {
+                                showStatus('简单测试完成', 'success');
+                                updateStats('simple', chunkCount, Date.now() - startTime);
+                                document.getElementById('simpleTestBtn').disabled = false;
+                                document.getElementById('stopBtn').disabled = true;
+                                return;
+                            }
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (parsed.content) {
+                                    responseDiv.textContent += parsed.content;
+                                    chunkCount++;
+                                    updateStats('simple', chunkCount, Date.now() - startTime);
+                                }
+                            } catch (e) {
+                                console.error('Failed to parse JSON:', data);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Simple test error:', error);
+                showStatus(`简单测试错误: ${error.message}`, 'error');
+                document.getElementById('simpleTestBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            }
+        }
+
+        // AI对话测试
+        async function startAITest() {
+            const question = document.getElementById('aiQuestion').value.trim();
+            const token = document.getElementById('authToken').value.trim();
+            
+            if (!question) {
+                showStatus('请输入问题', 'error');
+                return;
+            }
+            
+            clearResponse('aiResponse');
+            showStatus('正在连接AI对话流...', 'info');
+            
+            document.getElementById('aiTestBtn').disabled = true;
+            document.getElementById('stopAiBtn').disabled = false;
+            
+            startTime = Date.now();
+            chunkCount = 0;
+            
+            try {
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+                }
+                
+                                 const response = await fetch('http://localhost:8100/api/ai-agent/session', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ question: question })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                const responseDiv = document.getElementById('aiResponse');
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    console.log('Received AI chunk:', chunk);
+
+                    // 解析SSE格式
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.substring(6);
+                            if (data === '[DONE]') {
+                                showStatus('AI对话完成', 'success');
+                                updateStats('ai', chunkCount, Date.now() - startTime);
+                                document.getElementById('aiTestBtn').disabled = false;
+                                document.getElementById('stopAiBtn').disabled = true;
+                                return;
+                            }
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (parsed.content) {
+                                    responseDiv.textContent += parsed.content;
+                                    chunkCount++;
+                                    updateStats('ai', chunkCount, Date.now() - startTime);
+                                } else if (parsed.error) {
+                                    showStatus(`AI错误: ${parsed.error}`, 'error');
+                                }
+                            } catch (e) {
+                                console.error('Failed to parse AI JSON:', data);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('AI test error:', error);
+                showStatus(`AI对话错误: ${error.message}`, 'error');
+                document.getElementById('aiTestBtn').disabled = false;
+                document.getElementById('stopAiBtn').disabled = true;
+            }
+        }
+
+        // EventSource测试
+        function startEventSourceTest() {
+            const question = document.getElementById('eventSourceQuestion').value.trim();
+            if (!question) {
+                showStatus('请输入问题', 'error');
+                return;
+            }
+            
+            clearResponse('eventSourceResponse');
+            showStatus('正在使用EventSource连接...', 'info');
+            
+            document.getElementById('eventSourceBtn').disabled = true;
+            document.getElementById('stopEventSourceBtn').disabled = false;
+            
+            chunkCount = 0;
+            const responseDiv = document.getElementById('eventSourceResponse');
+            
+                         // 创建EventSource连接
+             const url = `http://localhost:8100/api/ai-agent/chat-stream?question=${encodeURIComponent(question)}`;
+             currentEventSource = new EventSource(url);
+            
+            document.getElementById('esStatus').textContent = '连接中...';
+            
+            currentEventSource.onopen = function(event) {
+                console.log('EventSource connection opened');
+                document.getElementById('esStatus').textContent = '已连接';
+                showStatus('EventSource连接成功', 'success');
+            };
+            
+            currentEventSource.onmessage = function(event) {
+                console.log('EventSource message:', event.data);
+                
+                if (event.data === '[DONE]') {
+                    showStatus('EventSource对话完成', 'success');
+                    stopEventSource();
+                    return;
+                }
+                
+                try {
+                    const parsed = JSON.parse(event.data);
+                    if (parsed.content) {
+                        responseDiv.textContent += parsed.content;
+                        chunkCount++;
+                        updateStats('es', chunkCount, 0);
+                    } else if (parsed.status === 'connected') {
+                        showStatus('EventSource已连接，开始接收数据...', 'info');
+                    } else if (parsed.error) {
+                        showStatus(`EventSource错误: ${parsed.error}`, 'error');
+                    }
+                } catch (e) {
+                    console.error('Failed to parse EventSource data:', event.data);
+                }
+            };
+            
+            currentEventSource.onerror = function(error) {
+                console.error('EventSource error:', error);
+                showStatus('EventSource连接错误', 'error');
+                document.getElementById('esStatus').textContent = '连接错误';
+                stopEventSource();
+            };
+        }
+
+        function stopEventSource() {
+            if (currentEventSource) {
+                currentEventSource.close();
+                currentEventSource = null;
+            }
+            document.getElementById('eventSourceBtn').disabled = false;
+            document.getElementById('stopEventSourceBtn').disabled = true;
+            document.getElementById('esStatus').textContent = '已断开';
+        }
+
+        function stopStream() {
+            // 这里可以添加中断当前请求的逻辑
+            document.getElementById('simpleTestBtn').disabled = false;
+            document.getElementById('aiTestBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('stopAiBtn').disabled = true;
+            showStatus('已停止流传输', 'info');
+        }
+
+        // 页面卸载时清理EventSource
+        window.addEventListener('beforeunload', function() {
+            if (currentEventSource) {
+                currentEventSource.close();
+            }
+        });
+    </script>
+</body>
+</html> 
