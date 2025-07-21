@@ -32,7 +32,44 @@ export class CourseService {
     if (!course) {
       return false;
     }
-    return course.courseBuy.find((buy) => buy.userId === userId)?.isFinished || false;
+    
+    const course_is_finished = course.courseBuy.find((buy) => buy.userId === userId)?.isFinished || false;
+    if (course_is_finished) {
+      return true;
+    }
+    
+    // course_is_finished is false, check if all chapters are finished
+    const chapters = await this.prismaService.chapter.findMany({
+      where: {
+        courseId: courseId
+      },
+      include: {
+        userProgress: {
+          where: {
+            userId: userId
+          }
+        }
+      }
+    });
+    for (const chapter of chapters) {
+      const chapter_is_finished = chapter.userProgress.find((progress) => progress.userId === userId)?.completed || false;
+      if (!chapter_is_finished) {
+        return false;
+      }
+    }
+    // double validation 
+    await this.prismaService.userCourseBuy.update({
+      where: {
+        userId_courseId: {
+          userId: userId,
+          courseId: courseId
+        }
+      },
+      data: {
+        isFinished: true
+      }
+    });
+    return true;
   }
 
   async getCourseList(typeId?: string, userId?: string): Promise<CourseDto[]> {
